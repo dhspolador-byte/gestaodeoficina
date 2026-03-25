@@ -3,266 +3,257 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bonatto Motorsports - Sistema da Oficina</title>
+  <title>Mecânica & Guincho Bonatto BEM</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header class="topo-oficina">
-    <div class="logo-box">
-      <img src="logo.jpg" alt="Bonatto Motorsports" class="logo-oficina" />
-    </div>
+    <div class="branding-oficina">
+      <div class="logo-box">
+        <img src="logo.jpg" alt="Logo Bonatto" class="logo-oficina" />
+      </div>
 
-    <div class="dados-oficina">
-      <h1>Mecânica &amp; Guincho Bonatto BEM</h1>
-      <p><strong>CNPJ:</strong> 18.657.119/0001-05</p>
-      <p>Sistema de Ordem de Serviço</p>
+      <div class="dados-oficina">
+        <h1>Mecânica &amp; Guincho Bonatto BEM</h1>
+        <p><strong>CNPJ:</strong> 18.657.119/0001-05</p>
+        <p>Sistema de Ordem de Serviço</p>
+      </div>
     </div>
   </header>
 
   <main class="container">
-    <section class="card">
-      <div class="card-header">
-        <h2>Nova Ordem de Serviço</h2>
-      </div>
+    <section class="acoes-topo">
+      <button type="button" onclick="abrirModalCliente()">+ Incluir Cliente</button>
+      <button type="button" onclick="abrirModalVeiculo()">+ Incluir Veículo</button>
+      <button type="button" onclick="abrirNovaOS()">+ Nova OS</button>
+    </section>
 
-      <div class="grid grid-2">
-        <div class="field">
-          <label for="cliente">Cliente</label>
-          <select id="cliente"></select>
-        </div>
-
-        <div class="field field-inline-end">
-          <label>&nbsp;</label>
-          <button class="btn btn-primary" id="btnNovoCliente">+ Incluir cliente</button>
-        </div>
-      </div>
-
-      <div class="grid grid-2">
-        <div class="field">
-          <label for="veiculo">Veículo</label>
-          <select id="veiculo"></select>
-        </div>
-
-        <div class="field field-inline-end">
-          <label>&nbsp;</label>
-          <button class="btn btn-primary" id="btnNovoVeiculo">+ Incluir veículo</button>
-        </div>
-      </div>
-
-      <div class="grid grid-2">
-        <div class="field">
-          <label for="km_entrada">KM Entrada</label>
-          <input id="km_entrada" type="number" placeholder="Ex.: 125000" />
-        </div>
-
-        <div class="field">
-          <label for="desconto_geral">Desconto geral</label>
-          <input id="desconto_geral" type="number" step="0.01" value="0" />
-        </div>
-      </div>
-
-      <div class="field">
-        <label for="defeito">Defeito relatado</label>
-        <textarea id="defeito" rows="3" placeholder="Descreva o problema relatado pelo cliente"></textarea>
-      </div>
-
-      <div class="field">
-        <label for="diagnostico">Diagnóstico</label>
-        <textarea id="diagnostico" rows="3" placeholder="Descreva o diagnóstico"></textarea>
+    <section class="card barra-pesquisa">
+      <div class="campo-pesquisa">
+        <span class="icone-lupa">🔍</span>
+        <input
+          type="text"
+          id="pesquisaOS"
+          placeholder="Pesquisar por número da OS ou cliente"
+          oninput="filtrarOS()"
+        />
       </div>
     </section>
 
-    <section class="card">
-      <div class="card-header">
-        <h2>Adicionar Item</h2>
-      </div>
+    <section class="card formulario-os">
+      <h2>Ordem de Serviço</h2>
 
-      <div class="grid grid-2">
-        <div class="field">
-          <label for="tipo_item">Tipo</label>
-          <select id="tipo_item">
-            <option value="PECA">Peça</option>
-            <option value="SERVICO">Serviço</option>
+      <div class="grid-form">
+        <div>
+          <label>Número da OS</label>
+          <input type="text" id="osNumero" readonly placeholder="Gerado automaticamente" />
+        </div>
+
+        <div>
+          <label>Cliente</label>
+          <select id="osCliente" onchange="preencherVeiculosCliente()">
+            <option value="">Selecione</option>
           </select>
         </div>
 
-        <div class="field">
-          <label for="descricao_item">Descrição</label>
-          <input id="descricao_item" type="text" placeholder="Ex.: Troca de óleo" />
+        <div>
+          <label>Veículo</label>
+          <select id="osVeiculo">
+            <option value="">Selecione</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Status</label>
+          <select id="osStatus">
+            <option>Aberta</option>
+            <option>Em andamento</option>
+            <option>Finalizada</option>
+          </select>
         </div>
       </div>
 
-      <div class="grid grid-3">
-        <div class="field">
-          <label for="qtd_item">Quantidade</label>
-          <input id="qtd_item" type="number" step="0.01" value="1" />
-        </div>
-
-        <div class="field">
-          <label for="valor_item">Valor unitário</label>
-          <input id="valor_item" type="number" step="0.01" value="0" />
-        </div>
-
-        <div class="field">
-          <label for="desconto_item">Desconto</label>
-          <input id="desconto_item" type="number" step="0.01" value="0" />
+      <div class="grid-form">
+        <div class="span-2">
+          <label>Observações</label>
+          <textarea id="osObservacoes" rows="3"></textarea>
         </div>
       </div>
 
-      <div class="actions">
-        <button class="btn btn-primary" id="btnAdicionarItem">Adicionar item</button>
+      <h3>Itens da OS</h3>
+
+      <div class="grid-itens">
+        <input type="text" id="itemDescricao" placeholder="Descrição da peça ou serviço" />
+        <input type="number" id="itemQuantidade" min="1" value="1" placeholder="Qtd" />
+        <input type="number" id="itemValor" min="0" step="0.01" placeholder="Valor" />
+        <button type="button" onclick="adicionarItem()">+ Adicionar item</button>
+      </div>
+
+      <div class="tabela-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Descrição</th>
+              <th>Qtd</th>
+              <th>Valor</th>
+              <th>Total</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="listaItensOS"></tbody>
+        </table>
+      </div>
+
+      <h3>Checklist do Veículo</h3>
+
+      <div class="checklist-box">
+        <label for="checklistFotos">Fotos do checklist</label>
+        <input
+          type="file"
+          id="checklistFotos"
+          accept="image/*"
+          multiple
+          capture="environment"
+          onchange="previewChecklistFotos(event)"
+        />
+        <small class="campo-ajuda">
+          No celular, você pode tirar foto na hora ou escolher imagens da galeria.
+        </small>
+        <div id="previewChecklist" class="preview-checklist"></div>
+      </div>
+
+      <div class="rodape-formulario">
+        <div class="total-box">
+          <strong>Total da OS:</strong>
+          <span id="totalOS">R$ 0,00</span>
+        </div>
+
+        <div class="acoes-formulario">
+          <button type="button" class="btn-secundario" onclick="limparFormularioOS()">Limpar</button>
+          <button type="button" class="btn-principal" onclick="salvarOS()">Salvar OS</button>
+        </div>
       </div>
     </section>
 
-    <section class="card">
-      <div class="card-header">
-        <h2>Itens da OS</h2>
-      </div>
-
-      <div id="listaItens" class="items-list empty-state">
-        Nenhum item adicionado.
-      </div>
-
-      <div class="totals">
-        <div class="total-box">
-          <span>Total peças</span>
-          <strong>R$ <span id="totalPecas">0,00</span></strong>
-        </div>
-        <div class="total-box">
-          <span>Total serviços</span>
-          <strong>R$ <span id="totalServicos">0,00</span></strong>
-        </div>
-        <div class="total-box total-box-highlight">
-          <span>Total final</span>
-          <strong>R$ <span id="totalFinal">0,00</span></strong>
-        </div>
-      </div>
-
-      <div class="actions">
-        <button class="btn btn-success" id="btnSalvarOS">Salvar OS</button>
-        <button class="btn btn-secondary" id="btnLimparForm">Limpar formulário</button>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="card-header">
+    <section class="card lista-os">
+      <div class="lista-header">
         <h2>Ordens de Serviço</h2>
-        <button class="btn btn-secondary" id="btnAtualizarOS">Atualizar</button>
+        <button type="button" class="btn-secundario" onclick="carregarDadosIniciais()">Atualizar</button>
       </div>
 
-      <div id="listaOS" class="os-list empty-state">
-        Carregando...
+      <div class="tabela-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Nº OS</th>
+              <th>Cliente</th>
+              <th>Veículo</th>
+              <th>Status</th>
+              <th>Total</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="listaOS"></tbody>
+        </table>
       </div>
     </section>
   </main>
 
-  <div id="loadingOverlay" class="loading-overlay hidden">
-    <div class="loading-box">Processando...</div>
-  </div>
-
-  <div id="modalCliente" class="modal hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Novo cliente</h3>
-        <button class="btn btn-danger btn-small" id="btnFecharModalCliente">Fechar</button>
+  <div class="modal" id="modalCliente">
+    <div class="modal-conteudo">
+      <div class="modal-topo">
+        <h3>Cadastrar Cliente</h3>
+        <button type="button" class="fechar-modal" onclick="fecharModal('modalCliente')">×</button>
       </div>
 
-      <div class="field">
-        <label for="cliente_nome">Nome</label>
-        <input id="cliente_nome" type="text" />
-      </div>
-
-      <div class="grid grid-2">
-        <div class="field">
-          <label for="cliente_telefone">Telefone</label>
-          <input id="cliente_telefone" type="text" />
+      <div class="grid-form">
+        <div>
+          <label>Nome</label>
+          <input type="text" id="clienteNome" />
         </div>
-
-        <div class="field">
-          <label for="cliente_whatsapp">WhatsApp</label>
-          <input id="cliente_whatsapp" type="text" />
+        <div>
+          <label>Telefone</label>
+          <input type="text" id="clienteTelefone" />
+        </div>
+        <div>
+          <label>WhatsApp</label>
+          <input type="text" id="clienteWhatsapp" />
+        </div>
+        <div>
+          <label>E-mail</label>
+          <input type="email" id="clienteEmail" />
+        </div>
+        <div class="span-2">
+          <label>Endereço</label>
+          <input type="text" id="clienteEndereco" />
+        </div>
+        <div class="span-2">
+          <label>Observações</label>
+          <textarea id="clienteObs" rows="3"></textarea>
         </div>
       </div>
 
-      <div class="field">
-        <label for="cliente_email">E-mail</label>
-        <input id="cliente_email" type="email" />
-      </div>
-
-      <div class="field">
-        <label for="cliente_endereco">Endereço</label>
-        <input id="cliente_endereco" type="text" />
-      </div>
-
-      <div class="field">
-        <label for="cliente_obs">Observações</label>
-        <textarea id="cliente_obs" rows="3"></textarea>
-      </div>
-
-      <div class="actions">
-        <button class="btn btn-success" id="btnSalvarCliente">Salvar cliente</button>
+      <div class="acoes-formulario">
+        <button type="button" class="btn-principal" onclick="salvarCliente()">Salvar Cliente</button>
       </div>
     </div>
   </div>
 
-  <div id="modalVeiculo" class="modal hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Novo veículo</h3>
-        <button class="btn btn-danger btn-small" id="btnFecharModalVeiculo">Fechar</button>
+  <div class="modal" id="modalVeiculo">
+    <div class="modal-conteudo">
+      <div class="modal-topo">
+        <h3>Cadastrar Veículo</h3>
+        <button type="button" class="fechar-modal" onclick="fecharModal('modalVeiculo')">×</button>
       </div>
 
-      <div class="field">
-        <label for="veiculo_cliente_id">Cliente</label>
-        <select id="veiculo_cliente_id"></select>
+      <div class="grid-form">
+        <div>
+          <label>Cliente</label>
+          <select id="veiculoCliente">
+            <option value="">Selecione</option>
+          </select>
+        </div>
+        <div>
+          <label>Marca</label>
+          <input type="text" id="veiculoMarca" />
+        </div>
+        <div>
+          <label>Modelo</label>
+          <input type="text" id="veiculoModelo" />
+        </div>
+        <div>
+          <label>Placa</label>
+          <input type="text" id="veiculoPlaca" />
+        </div>
+        <div>
+          <label>Ano</label>
+          <input type="text" id="veiculoAno" />
+        </div>
+        <div>
+          <label>Cor</label>
+          <input type="text" id="veiculoCor" />
+        </div>
+        <div>
+          <label>KM</label>
+          <input type="text" id="veiculoKm" />
+        </div>
+        <div>
+          <label>Chassi</label>
+          <input type="text" id="veiculoChassi" />
+        </div>
+        <div class="span-2">
+          <label>Observações</label>
+          <textarea id="veiculoObs" rows="3"></textarea>
+        </div>
       </div>
 
-      <div class="grid grid-2">
-        <div class="field">
-          <label for="veiculo_placa">Placa</label>
-          <input id="veiculo_placa" type="text" />
-        </div>
-
-        <div class="field">
-          <label for="veiculo_marca">Marca</label>
-          <input id="veiculo_marca" type="text" />
-        </div>
-      </div>
-
-      <div class="grid grid-2">
-        <div class="field">
-          <label for="veiculo_modelo">Modelo</label>
-          <input id="veiculo_modelo" type="text" />
-        </div>
-
-        <div class="field">
-          <label for="veiculo_ano">Ano</label>
-          <input id="veiculo_ano" type="text" />
-        </div>
-      </div>
-
-      <div class="grid grid-2">
-        <div class="field">
-          <label for="veiculo_cor">Cor</label>
-          <input id="veiculo_cor" type="text" />
-        </div>
-
-        <div class="field">
-          <label for="veiculo_km">KM</label>
-          <input id="veiculo_km" type="number" />
-        </div>
-      </div>
-
-      <div class="field">
-        <label for="veiculo_obs">Observações</label>
-        <textarea id="veiculo_obs" rows="3"></textarea>
-      </div>
-
-      <div class="actions">
-        <button class="btn btn-success" id="btnSalvarVeiculo">Salvar veículo</button>
+      <div class="acoes-formulario">
+        <button type="button" class="btn-principal" onclick="salvarVeiculo()">Salvar Veículo</button>
       </div>
     </div>
   </div>
+
+  <div id="loading" class="loading">Salvando...</div>
 
   <script src="app.js"></script>
 </body>
