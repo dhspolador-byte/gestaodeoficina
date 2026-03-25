@@ -1,29 +1,4 @@
-.field-inline-end {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-}
-
-.modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
-  padding: 16px;
-}
-
-.modal-content {
-  width: 100%;
-  max-width: 700px;
-  background: #fff;
-  border-radius: 18px;
-  box-shadow: var(--shadow);
-  padding: 18px;
-  max-height: 90vh;
-  overflow-y: auto;
+ overflow-y: auto;
 }
 
 .modal-header {
