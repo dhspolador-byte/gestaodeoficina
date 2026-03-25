@@ -2,10 +2,10 @@
 // Troque pela URL do seu Apps Script publicado
 const API_URL = "https://script.google.com/macros/s/AKfycbwp6HIfd4GfsL4IVAiBXRm_imI_CANQhS92UT-nzvrhs3wDYF2vtnGcnWnY2gPjGkVBbw/exec";
 
-// ========= ESTADO =========
 let itensOS = [];
+let modoEdicao = false;
+let osEditandoId = null;
 
-// ========= HELPERS =========
 function showLoading(show = true) {
   const overlay = document.getElementById("loadingOverlay");
   overlay.classList.toggle("hidden", !show);
@@ -43,7 +43,6 @@ async function apiPost(payload = {}) {
   return await res.json();
 }
 
-// ========= CARGA INICIAL =========
 async function init() {
   bindEvents();
   await carregarClientes();
@@ -58,23 +57,40 @@ function bindEvents() {
   getEl("btnAtualizarOS").addEventListener("click", carregarOS);
   getEl("btnLimparForm").addEventListener("click", limparFormulario);
   getEl("desconto_geral").addEventListener("input", renderItens);
+
+  getEl("btnNovoCliente").addEventListener("click", abrirModalCliente);
+  getEl("btnFecharModalCliente").addEventListener("click", fecharModalCliente);
+  getEl("btnSalvarCliente").addEventListener("click", salvarCliente);
+
+  getEl("btnNovoVeiculo").addEventListener("click", abrirModalVeiculo);
+  getEl("btnFecharModalVeiculo").addEventListener("click", fecharModalVeiculo);
+  getEl("btnSalvarVeiculo").addEventListener("click", salvarVeiculo);
 }
 
-// ========= CLIENTES / VEÍCULOS =========
 async function carregarClientes() {
   try {
     showLoading(true);
     const res = await apiGet({ action: "listarClientes" });
-    const select = getEl("cliente");
 
-    select.innerHTML = `<option value="">Selecione um cliente</option>`;
+    const selectCliente = getEl("cliente");
+    const selectVeiculoCliente = getEl("veiculo_cliente_id");
+
+    selectCliente.innerHTML = `<option value="">Selecione um cliente</option>`;
+    selectVeiculoCliente.innerHTML = `<option value="">Selecione um cliente</option>`;
 
     if (res.ok && Array.isArray(res.data)) {
       res.data.forEach(cliente => {
-        const option = document.createElement("option");
-        option.value = cliente.ID;
-        option.textContent = `${cliente.NOME} ${cliente.WHATSAPP ? "- " + cliente.WHATSAPP : ""}`;
-        select.appendChild(option);
+        const texto = `${cliente.NOME}${cliente.WHATSAPP ? " - " + cliente.WHATSAPP : ""}`;
+
+        const option1 = document.createElement("option");
+        option1.value = cliente.ID;
+        option1.textContent = texto;
+        selectCliente.appendChild(option1);
+
+        const option2 = document.createElement("option");
+        option2.value = cliente.ID;
+        option2.textContent = texto;
+        selectVeiculoCliente.appendChild(option2);
       });
     }
   } catch (error) {
@@ -109,7 +125,117 @@ async function carregarVeiculos() {
   }
 }
 
-// ========= ITENS DA OS =========
+function abrirModalCliente() {
+  getEl("modalCliente").classList.remove("hidden");
+}
+
+function fecharModalCliente() {
+  getEl("modalCliente").classList.add("hidden");
+  getEl("cliente_nome").value = "";
+  getEl("cliente_telefone").value = "";
+  getEl("cliente_whatsapp").value = "";
+  getEl("cliente_email").value = "";
+  getEl("cliente_endereco").value = "";
+  getEl("cliente_obs").value = "";
+}
+
+function abrirModalVeiculo() {
+  getEl("modalVeiculo").classList.remove("hidden");
+}
+
+function fecharModalVeiculo() {
+  getEl("modalVeiculo").classList.add("hidden");
+  getEl("veiculo_cliente_id").value = "";
+  getEl("veiculo_placa").value = "";
+  getEl("veiculo_marca").value = "";
+  getEl("veiculo_modelo").value = "";
+  getEl("veiculo_ano").value = "";
+  getEl("veiculo_cor").value = "";
+  getEl("veiculo_km").value = "";
+  getEl("veiculo_obs").value = "";
+}
+
+async function salvarCliente() {
+  const payload = {
+    action: "salvarCliente",
+    nome: getEl("cliente_nome").value.trim(),
+    telefone: getEl("cliente_telefone").value.trim(),
+    whatsapp: getEl("cliente_whatsapp").value.trim(),
+    email: getEl("cliente_email").value.trim(),
+    endereco: getEl("cliente_endereco").value.trim(),
+    observacoes: getEl("cliente_obs").value.trim()
+  };
+
+  if (!payload.nome) {
+    alert("Informe o nome do cliente.");
+    return;
+  }
+
+  try {
+    showLoading(true);
+    const res = await apiPost(payload);
+
+    if (!res.ok) {
+      alert(res.error || "Erro ao salvar cliente.");
+      return;
+    }
+
+    await carregarClientes();
+    getEl("cliente").value = String(res.id);
+    fecharModalCliente();
+    alert("Cliente salvo com sucesso.");
+  } catch (error) {
+    alert("Erro ao salvar cliente.");
+    console.error(error);
+  } finally {
+    showLoading(false);
+  }
+}
+
+async function salvarVeiculo() {
+  const payload = {
+    action: "salvarVeiculo",
+    cliente_id: getEl("veiculo_cliente_id").value,
+    placa: getEl("veiculo_placa").value.trim().toUpperCase(),
+    marca: getEl("veiculo_marca").value.trim(),
+    modelo: getEl("veiculo_modelo").value.trim(),
+    ano: getEl("veiculo_ano").value.trim(),
+    cor: getEl("veiculo_cor").value.trim(),
+    km: getEl("veiculo_km").value.trim(),
+    observacoes: getEl("veiculo_obs").value.trim()
+  };
+
+  if (!payload.cliente_id) {
+    alert("Selecione o cliente do veículo.");
+    return;
+  }
+
+  if (!payload.placa) {
+    alert("Informe a placa.");
+    return;
+  }
+
+  try {
+    showLoading(true);
+    const res = await apiPost(payload);
+
+    if (!res.ok) {
+      alert(res.error || "Erro ao salvar veículo.");
+      return;
+    }
+
+    await carregarVeiculos();
+    getEl("veiculo").value = String(res.id);
+    fecharModalVeiculo();
+    alert("Veículo salvo com sucesso.");
+  } catch (error) {
+    alert("Erro ao salvar veículo.");
+    console.error(error);
+  } finally {
+    showLoading(false);
+  }
+}
+
 function adicionarItem() {
   const tipo_item = getEl("tipo_item").value;
   const descricao = getEl("descricao_item").value.trim();
@@ -194,7 +320,6 @@ function renderItens() {
   getEl("totalFinal").textContent = formatMoney(totalFinal);
 }
 
-// ========= SALVAR OS =========
 async function salvarOS() {
   const cliente_id = getEl("cliente").value;
   const veiculo_id = getEl("veiculo").value;
@@ -219,7 +344,8 @@ async function salvarOS() {
   }
 
   const payload = {
-    action: "salvarOS",
+    action: modoEdicao ? "editarOS" : "salvarOS",
+    id: osEditandoId,
     cliente_id,
     veiculo_id,
     km_entrada,
@@ -238,7 +364,7 @@ async function salvarOS() {
       return;
     }
 
-    alert(`OS salva com sucesso: ${res.numero_os}`);
+    alert(modoEdicao ? "OS atualizada com sucesso." : `OS salva com sucesso: ${res.numero_os}`);
     limparFormulario();
     await carregarOS();
   } catch (error) {
@@ -257,10 +383,12 @@ function limparFormulario() {
   getEl("diagnostico").value = "";
   getEl("desconto_geral").value = "0";
   itensOS = [];
+  modoEdicao = false;
+  osEditandoId = null;
+  getEl("btnSalvarOS").textContent = "Salvar OS";
   renderItens();
 }
 
-// ========= LISTAGEM DE OS =========
 async function carregarOS() {
   try {
     showLoading(true);
@@ -292,6 +420,8 @@ async function carregarOS() {
 
         <div class="os-actions">
           <button class="btn btn-secondary" onclick="visualizarOS(${os.ID})">Ver</button>
+          <button class="btn btn-primary" onclick="editarOS(${os.ID})">Editar</button>
+          <button class="btn btn-danger" onclick="excluirOS(${os.ID})">Excluir</button>
           <button class="btn btn-success" onclick="finalizarOS(${os.ID})">Finalizar</button>
           <button class="btn btn-primary" onclick="gerarPdf(${os.ID})">Gerar PDF</button>
           <button class="btn btn-secondary" onclick="enviarWhats(${os.ID})">WhatsApp</button>
@@ -340,7 +470,71 @@ async function visualizarOS(id) {
   }
 }
 
-// ========= AÇÕES DA OS =========
+async function editarOS(id) {
+  try {
+    showLoading(true);
+    const res = await apiGet({ action: "buscarOS", id });
+
+    if (!res.ok) {
+      alert(res.error || "OS não encontrada.");
+      return;
+    }
+
+    const { os, itens } = res.data;
+
+    modoEdicao = true;
+    osEditandoId = id;
+
+    getEl("cliente").value = String(os.CLIENTE_ID || "");
+    getEl("veiculo").value = String(os.VEICULO_ID || "");
+    getEl("km_entrada").value = os.KM_ENTRADA || "";
+    getEl("defeito").value = os.DEFEITO_RELATADO || "";
+    getEl("diagnostico").value = os.DIAGNOSTICO || "";
+    getEl("desconto_geral").value = os.DESCONTO_GERAL || 0;
+
+    itensOS = (itens || []).map(item => ({
+      tipo_item: item.TIPO_ITEM,
+      descricao: item.DESCRICAO,
+      quantidade: Number(item.QUANTIDADE || 0),
+      valor_unitario: Number(item.VALOR_UNITARIO || 0),
+      desconto: Number(item.DESCONTO || 0),
+      subtotal: Number(item.SUBTOTAL || 0)
+    }));
+
+    getEl("btnSalvarOS").textContent = "Atualizar OS";
+    renderItens();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } catch (error) {
+    alert("Erro ao carregar dados da OS.");
+    console.error(error);
+  } finally {
+    showLoading(false);
+  }
+}
+
+async function excluirOS(id) {
+  const confirmar = confirm("Deseja excluir esta ordem de serviço?");
+  if (!confirmar) return;
+
+  try {
+    showLoading(true);
+    const res = await apiPost({ action: "excluirOS", id });
+
+    if (!res.ok) {
+      alert(res.error || "Erro ao excluir.");
+      return;
+    }
+
+    alert("OS excluída com sucesso.");
+    await carregarOS();
+  } catch (error) {
+    alert("Erro ao excluir OS.");
+    console.error(error);
+  } finally {
+    showLoading(false);
+  }
+}
+
 async function finalizarOS(id) {
   const confirmar = confirm("Deseja finalizar esta ordem de serviço?");
   if (!confirmar) return;
@@ -425,5 +619,4 @@ async function enviarWhats(id) {
   }
 }
 
-// iniciar
 window.addEventListener("DOMContentLoaded", init);
