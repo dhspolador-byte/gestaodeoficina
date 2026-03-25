@@ -1,622 +1,640 @@
-// ========= CONFIGURAÇÃO =========
-// Troque pela URL do seu Apps Script publicado
-const API_URL = "https://script.google.com/macros/s/AKfycbwp6HIfd4GfsL4IVAiBXRm_imI_CANQhS92UT-nzvrhs3wDYF2vtnGcnWnY2gPjGkVBbw/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz_XsyDwZMGvHt8ASO7Id54rAk4iy7i4gozqZ9GXQKTQqhmqjjje4RIi4MGqCp2aMmQxg/exec";
 
+let clientes = [];
+let veiculos = [];
+let ordensServico = [];
 let itensOS = [];
-let modoEdicao = false;
-let osEditandoId = null;
+let checklistFotos = [];
+let indiceEdicaoOS = null;
+let indiceEdicaoItem = null;
 
-function showLoading(show = true) {
-  const overlay = document.getElementById("loadingOverlay");
-  overlay.classList.toggle("hidden", !show);
+function mostrarLoading(mostrar) {
+  document.getElementById("loading").classList.toggle("ativo", !!mostrar);
 }
 
-function formatMoney(value) {
-  return Number(value || 0).toLocaleString("pt-BR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
+function formatarMoeda(valor) {
+  return Number(valor || 0).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL"
   });
 }
 
-function sanitizePhone(phone) {
-  return String(phone || "").replace(/\D/g, "");
-}
+async function apiPost(payload) {
+  if (!SCRIPT_URL || SCRIPT_URL.includes("COLE_AQUI_A_URL_DO_SEU_WEB_APP")) {
+    throw new Error("Configure a URL do Web App no app.js");
+  }
 
-function getEl(id) {
-  return document.getElementById(id);
-}
-
-async function apiGet(params = {}) {
-  const url = `${API_URL}?${new URLSearchParams(params).toString()}`;
-  const res = await fetch(url, { method: "GET" });
-  return await res.json();
-}
-
-async function apiPost(payload = {}) {
-  const res = await fetch(API_URL, {
+  const response = await fetch(SCRIPT_URL, {
     method: "POST",
     headers: {
       "Content-Type": "text/plain;charset=utf-8"
     },
     body: JSON.stringify(payload)
   });
-  return await res.json();
+
+  const data = await response.json();
+
+  if (!data.ok) {
+    throw new Error(data.message || "Erro na comunicação com o Apps Script.");
+  }
+
+  return data;
 }
 
-async function init() {
-  bindEvents();
-  await carregarClientes();
-  await carregarVeiculos();
-  await carregarOS();
-  renderItens();
-}
-
-function bindEvents() {
-  getEl("btnAdicionarItem").addEventListener("click", adicionarItem);
-  getEl("btnSalvarOS").addEventListener("click", salvarOS);
-  getEl("btnAtualizarOS").addEventListener("click", carregarOS);
-  getEl("btnLimparForm").addEventListener("click", limparFormulario);
-  getEl("desconto_geral").addEventListener("input", renderItens);
-
-  getEl("btnNovoCliente").addEventListener("click", abrirModalCliente);
-  getEl("btnFecharModalCliente").addEventListener("click", fecharModalCliente);
-  getEl("btnSalvarCliente").addEventListener("click", salvarCliente);
-
-  getEl("btnNovoVeiculo").addEventListener("click", abrirModalVeiculo);
-  getEl("btnFecharModalVeiculo").addEventListener("click", fecharModalVeiculo);
-  getEl("btnSalvarVeiculo").addEventListener("click", salvarVeiculo);
-}
-
-async function carregarClientes() {
+async function carregarProximoNumeroOS() {
   try {
-    showLoading(true);
-    const res = await apiGet({ action: "listarClientes" });
+    const data = await apiPost({ action: "getProximoNumeroOS" });
+    const numero = data.proximoNumeroOS || "";
+    document.getElementById("osNumero").value = numero;
+    return numero;
+  } catch (error) {
+    console.error("Erro ao carregar próximo número da OS:", error);
+    return "";
+  }
+}
 
-    const selectCliente = getEl("cliente");
-    const selectVeiculoCliente = getEl("veiculo_cliente_id");
+async function carregarDadosIniciais() {
+  try {
+    mostrarLoading(true);
 
-    selectCliente.innerHTML = `<option value="">Selecione um cliente</option>`;
-    selectVeiculoCliente.innerHTML = `<option value="">Selecione um cliente</option>`;
+    const data = await apiPost({ action: "init" });
 
-    if (res.ok && Array.isArray(res.data)) {
-      res.data.forEach(cliente => {
-        const texto = `${cliente.NOME}${cliente.WHATSAPP ? " - " + cliente.WHATSAPP : ""}`;
+    clientes = data.clientes || [];
+    veiculos = data.veiculos || [];
+    ordensServico = data.ordensServico || [];
 
-        const option1 = document.createElement("option");
-        option1.value = cliente.ID;
-        option1.textContent = texto;
-        selectCliente.appendChild(option1);
+    ordensServico = ordensServico.map(os => {
+      const cliente = clientes.find(c => String(c.id) === String(os.clienteId));
+      return {
+        ...os,
+        clienteTelefone: cliente ? (cliente.telefone || "") : "",
+        clienteWhatsapp: cliente ? (cliente.whatsapp || "") : ""
+      };
+    });
 
-        const option2 = document.createElement("option");
-        option2.value = cliente.ID;
-        option2.textContent = texto;
-        selectVeiculoCliente.appendChild(option2);
-      });
+    preencherSelectClientes();
+    renderizarOS();
+
+    if (data.proximoNumeroOS) {
+      document.getElementById("osNumero").value = data.proximoNumeroOS;
+    } else {
+      await carregarProximoNumeroOS();
     }
   } catch (error) {
-    alert("Erro ao carregar clientes.");
-    console.error(error);
+    alert(error.message);
   } finally {
-    showLoading(false);
+    mostrarLoading(false);
   }
 }
 
-async function carregarVeiculos() {
-  try {
-    showLoading(true);
-    const res = await apiGet({ action: "listarVeiculos" });
-    const select = getEl("veiculo");
+function preencherSelectClientes() {
+  const selectOS = document.getElementById("osCliente");
+  const selectVeiculo = document.getElementById("veiculoCliente");
 
-    select.innerHTML = `<option value="">Selecione um veículo</option>`;
+  selectOS.innerHTML = '<option value="">Selecione</option>';
+  selectVeiculo.innerHTML = '<option value="">Selecione</option>';
 
-    if (res.ok && Array.isArray(res.data)) {
-      res.data.forEach(veiculo => {
-        const option = document.createElement("option");
-        option.value = veiculo.ID;
-        option.textContent = `${veiculo.PLACA} - ${veiculo.MARCA} ${veiculo.MODELO}`;
-        select.appendChild(option);
-      });
-    }
-  } catch (error) {
-    alert("Erro ao carregar veículos.");
-    console.error(error);
-  } finally {
-    showLoading(false);
-  }
+  clientes.forEach(cliente => {
+    const optionOS = document.createElement("option");
+    optionOS.value = cliente.id;
+    optionOS.textContent = cliente.nome;
+    selectOS.appendChild(optionOS);
+
+    const optionVeiculo = document.createElement("option");
+    optionVeiculo.value = cliente.id;
+    optionVeiculo.textContent = cliente.nome;
+    selectVeiculo.appendChild(optionVeiculo);
+  });
 }
 
-function abrirModalCliente() {
-  getEl("modalCliente").classList.remove("hidden");
+function preencherVeiculosCliente(clienteIdSelecionado = null, veiculoIdSelecionado = null) {
+  const clienteId = clienteIdSelecionado || document.getElementById("osCliente").value;
+  const selectVeiculo = document.getElementById("osVeiculo");
+
+  selectVeiculo.innerHTML = '<option value="">Selecione</option>';
+
+  veiculos
+    .filter(v => String(v.clienteId) === String(clienteId))
+    .forEach(veiculo => {
+      const option = document.createElement("option");
+      option.value = veiculo.id;
+      option.textContent = `${veiculo.marca || ""} ${veiculo.modelo || ""} - ${veiculo.placa || ""}`.trim();
+
+      if (String(veiculo.id) === String(veiculoIdSelecionado)) {
+        option.selected = true;
+      }
+
+      selectVeiculo.appendChild(option);
+    });
 }
 
-function fecharModalCliente() {
-  getEl("modalCliente").classList.add("hidden");
-  getEl("cliente_nome").value = "";
-  getEl("cliente_telefone").value = "";
-  getEl("cliente_whatsapp").value = "";
-  getEl("cliente_email").value = "";
-  getEl("cliente_endereco").value = "";
-  getEl("cliente_obs").value = "";
+function calcularTotalOS() {
+  const total = itensOS.reduce((acc, item) => {
+    return acc + (Number(item.quantidade) * Number(item.valor));
+  }, 0);
+
+  document.getElementById("totalOS").textContent = formatarMoeda(total);
+  return total;
 }
 
-function abrirModalVeiculo() {
-  getEl("modalVeiculo").classList.remove("hidden");
+function limparCamposItem() {
+  document.getElementById("itemDescricao").value = "";
+  document.getElementById("itemQuantidade").value = 1;
+  document.getElementById("itemValor").value = "";
+  indiceEdicaoItem = null;
 }
 
-function fecharModalVeiculo() {
-  getEl("modalVeiculo").classList.add("hidden");
-  getEl("veiculo_cliente_id").value = "";
-  getEl("veiculo_placa").value = "";
-  getEl("veiculo_marca").value = "";
-  getEl("veiculo_modelo").value = "";
-  getEl("veiculo_ano").value = "";
-  getEl("veiculo_cor").value = "";
-  getEl("veiculo_km").value = "";
-  getEl("veiculo_obs").value = "";
-}
+function renderizarItensOS() {
+  const tbody = document.getElementById("listaItensOS");
+  tbody.innerHTML = "";
 
-async function salvarCliente() {
-  const payload = {
-    action: "salvarCliente",
-    nome: getEl("cliente_nome").value.trim(),
-    telefone: getEl("cliente_telefone").value.trim(),
-    whatsapp: getEl("cliente_whatsapp").value.trim(),
-    email: getEl("cliente_email").value.trim(),
-    endereco: getEl("cliente_endereco").value.trim(),
-    observacoes: getEl("cliente_obs").value.trim()
-  };
+  itensOS.forEach((item, index) => {
+    const totalItem = Number(item.quantidade) * Number(item.valor);
 
-  if (!payload.nome) {
-    alert("Informe o nome do cliente.");
-    return;
-  }
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${item.descricao}</td>
+      <td>${item.quantidade}</td>
+      <td>${formatarMoeda(item.valor)}</td>
+      <td>${formatarMoeda(totalItem)}</td>
+      <td>
+        <button class="btn-acao btn-editar" type="button" onclick="editarItem(${index})">Editar</button>
+        <button class="btn-acao btn-excluir" type="button" onclick="excluirItem(${index})">Excluir</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
 
-  try {
-    showLoading(true);
-    const res = await apiPost(payload);
-
-    if (!res.ok) {
-      alert(res.error || "Erro ao salvar cliente.");
-      return;
-    }
-
-    await carregarClientes();
-    getEl("cliente").value = String(res.id);
-    fecharModalCliente();
-    alert("Cliente salvo com sucesso.");
-  } catch (error) {
-    alert("Erro ao salvar cliente.");
-    console.error(error);
-  } finally {
-    showLoading(false);
-  }
-}
-
-async function salvarVeiculo() {
-  const payload = {
-    action: "salvarVeiculo",
-    cliente_id: getEl("veiculo_cliente_id").value,
-    placa: getEl("veiculo_placa").value.trim().toUpperCase(),
-    marca: getEl("veiculo_marca").value.trim(),
-    modelo: getEl("veiculo_modelo").value.trim(),
-    ano: getEl("veiculo_ano").value.trim(),
-    cor: getEl("veiculo_cor").value.trim(),
-    km: getEl("veiculo_km").value.trim(),
-    observacoes: getEl("veiculo_obs").value.trim()
-  };
-
-  if (!payload.cliente_id) {
-    alert("Selecione o cliente do veículo.");
-    return;
-  }
-
-  if (!payload.placa) {
-    alert("Informe a placa.");
-    return;
-  }
-
-  try {
-    showLoading(true);
-    const res = await apiPost(payload);
-
-    if (!res.ok) {
-      alert(res.error || "Erro ao salvar veículo.");
-      return;
-    }
-
-    await carregarVeiculos();
-    getEl("veiculo").value = String(res.id);
-    fecharModalVeiculo();
-    alert("Veículo salvo com sucesso.");
-  } catch (error) {
-    alert("Erro ao salvar veículo.");
-    console.error(error);
-  } finally {
-    showLoading(false);
-  }
+  calcularTotalOS();
 }
 
 function adicionarItem() {
-  const tipo_item = getEl("tipo_item").value;
-  const descricao = getEl("descricao_item").value.trim();
-  const quantidade = Number(getEl("qtd_item").value || 0);
-  const valor_unitario = Number(getEl("valor_item").value || 0);
-  const desconto = Number(getEl("desconto_item").value || 0);
+  const descricao = document.getElementById("itemDescricao").value.trim();
+  const quantidade = Number(document.getElementById("itemQuantidade").value);
+  const valor = Number(document.getElementById("itemValor").value);
 
   if (!descricao) {
     alert("Informe a descrição do item.");
     return;
   }
 
-  if (quantidade <= 0) {
-    alert("A quantidade deve ser maior que zero.");
+  if (!quantidade || quantidade <= 0) {
+    alert("Informe uma quantidade válida.");
     return;
   }
 
-  const subtotal = (quantidade * valor_unitario) - desconto;
-
-  itensOS.push({
-    tipo_item,
-    descricao,
-    quantidade,
-    valor_unitario,
-    desconto,
-    subtotal
-  });
-
-  getEl("descricao_item").value = "";
-  getEl("qtd_item").value = "1";
-  getEl("valor_item").value = "0";
-  getEl("desconto_item").value = "0";
-
-  renderItens();
-}
-
-function removerItem(index) {
-  itensOS.splice(index, 1);
-  renderItens();
-}
-
-function renderItens() {
-  const lista = getEl("listaItens");
-  const descontoGeral = Number(getEl("desconto_geral").value || 0);
-
-  if (!itensOS.length) {
-    lista.innerHTML = "Nenhum item adicionado.";
-    lista.classList.add("empty-state");
-  } else {
-    lista.classList.remove("empty-state");
-    lista.innerHTML = itensOS.map((item, index) => `
-      <div class="item-card">
-        <div class="item-card-header">
-          <span class="badge ${item.tipo_item === "PECA" ? "badge-peca" : "badge-servico"}">
-            ${item.tipo_item}
-          </span>
-          <button class="btn btn-danger" onclick="removerItem(${index})">Remover</button>
-        </div>
-        <div><strong>${item.descricao}</strong></div>
-        <div class="item-meta">
-          <span>Quantidade: ${item.quantidade}</span>
-          <span>Valor unitário: R$ ${formatMoney(item.valor_unitario)}</span>
-          <span>Desconto: R$ ${formatMoney(item.desconto)}</span>
-          <span>Subtotal: R$ ${formatMoney(item.subtotal)}</span>
-        </div>
-      </div>
-    `).join("");
+  if (isNaN(valor) || valor < 0) {
+    alert("Informe um valor válido.");
+    return;
   }
 
-  let totalPecas = 0;
-  let totalServicos = 0;
+  const item = {
+    descricao,
+    quantidade,
+    valor
+  };
 
-  itensOS.forEach(item => {
-    if (item.tipo_item === "PECA") totalPecas += Number(item.subtotal || 0);
-    if (item.tipo_item === "SERVICO") totalServicos += Number(item.subtotal || 0);
-  });
+  if (indiceEdicaoItem !== null) {
+    itensOS[indiceEdicaoItem] = item;
+  } else {
+    itensOS.push(item);
+  }
 
-  const totalFinal = totalPecas + totalServicos - descontoGeral;
-
-  getEl("totalPecas").textContent = formatMoney(totalPecas);
-  getEl("totalServicos").textContent = formatMoney(totalServicos);
-  getEl("totalFinal").textContent = formatMoney(totalFinal);
+  renderizarItensOS();
+  limparCamposItem();
 }
 
-async function salvarOS() {
-  const cliente_id = getEl("cliente").value;
-  const veiculo_id = getEl("veiculo").value;
-  const km_entrada = getEl("km_entrada").value;
-  const defeito_relatado = getEl("defeito").value.trim();
-  const diagnostico = getEl("diagnostico").value.trim();
-  const desconto_geral = getEl("desconto_geral").value;
+function editarItem(index) {
+  const item = itensOS[index];
+  document.getElementById("itemDescricao").value = item.descricao;
+  document.getElementById("itemQuantidade").value = item.quantidade;
+  document.getElementById("itemValor").value = item.valor;
+  indiceEdicaoItem = index;
+}
 
-  if (!cliente_id) {
+function excluirItem(index) {
+  if (!confirm("Deseja excluir este item?")) return;
+  itensOS.splice(index, 1);
+  renderizarItensOS();
+}
+
+function previewChecklistFotos(event) {
+  const files = Array.from(event.target.files || []);
+  checklistFotos = files;
+
+  const preview = document.getElementById("previewChecklist");
+  preview.innerHTML = "";
+
+  files.forEach((file, index) => {
+    const reader = new FileReader();
+
+    reader.onload = function (e) {
+      const div = document.createElement("div");
+      div.className = "preview-item";
+      div.innerHTML = `
+        <img src="${e.target.result}" alt="Foto ${index + 1}">
+        <span>${file.name}</span>
+      `;
+      preview.appendChild(div);
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+function limparFormularioCliente() {
+  document.getElementById("clienteNome").value = "";
+  document.getElementById("clienteTelefone").value = "";
+  document.getElementById("clienteWhatsapp").value = "";
+  document.getElementById("clienteEmail").value = "";
+  document.getElementById("clienteEndereco").value = "";
+  document.getElementById("clienteObs").value = "";
+}
+
+function limparFormularioVeiculo() {
+  document.getElementById("veiculoCliente").value = "";
+  document.getElementById("veiculoMarca").value = "";
+  document.getElementById("veiculoModelo").value = "";
+  document.getElementById("veiculoPlaca").value = "";
+  document.getElementById("veiculoAno").value = "";
+  document.getElementById("veiculoCor").value = "";
+  document.getElementById("veiculoKm").value = "";
+  document.getElementById("veiculoChassi").value = "";
+  document.getElementById("veiculoObs").value = "";
+}
+
+async function limparFormularioOS() {
+  document.getElementById("osNumero").value = "";
+  document.getElementById("osCliente").value = "";
+  document.getElementById("osVeiculo").innerHTML = '<option value="">Selecione</option>';
+  document.getElementById("osStatus").value = "Aberta";
+  document.getElementById("osObservacoes").value = "";
+  document.getElementById("checklistFotos").value = "";
+  document.getElementById("previewChecklist").innerHTML = "";
+
+  itensOS = [];
+  checklistFotos = [];
+  indiceEdicaoOS = null;
+  indiceEdicaoItem = null;
+
+  limparCamposItem();
+  renderizarItensOS();
+  await carregarProximoNumeroOS();
+}
+
+async function salvarCliente() {
+  const cliente = {
+    nome: document.getElementById("clienteNome").value.trim(),
+    telefone: document.getElementById("clienteTelefone").value.trim(),
+    whatsapp: document.getElementById("clienteWhatsapp").value.trim(),
+    email: document.getElementById("clienteEmail").value.trim(),
+    endereco: document.getElementById("clienteEndereco").value.trim(),
+    observacoes: document.getElementById("clienteObs").value.trim()
+  };
+
+  if (!cliente.nome) {
+    alert("Informe o nome do cliente.");
+    return;
+  }
+
+  try {
+    mostrarLoading(true);
+
+    const data = await apiPost({
+      action: "saveCliente",
+      cliente
+    });
+
+    clientes.push(data.cliente);
+    preencherSelectClientes();
+    fecharModal("modalCliente");
+    limparFormularioCliente();
+
+    alert("Cliente salvo com sucesso.");
+  } catch (error) {
+    alert(error.message);
+  } finally {
+    mostrarLoading(false);
+  }
+}
+
+async function salvarVeiculo() {
+  const veiculo = {
+    clienteId: document.getElementById("veiculoCliente").value,
+    marca: document.getElementById("veiculoMarca").value.trim(),
+    modelo: document.getElementById("veiculoModelo").value.trim(),
+    placa: document.getElementById("veiculoPlaca").value.trim(),
+    ano: document.getElementById("veiculoAno").value.trim(),
+    cor: document.getElementById("veiculoCor").value.trim(),
+    km: document.getElementById("veiculoKm").value.trim(),
+    chassi: document.getElementById("veiculoChassi").value.trim(),
+    observacoes: document.getElementById("veiculoObs").value.trim()
+  };
+
+  if (!veiculo.clienteId) {
     alert("Selecione o cliente.");
     return;
   }
 
-  if (!veiculo_id) {
+  if (!veiculo.modelo) {
+    alert("Informe o modelo do veículo.");
+    return;
+  }
+
+  try {
+    mostrarLoading(true);
+
+    const data = await apiPost({
+      action: "saveVeiculo",
+      veiculo
+    });
+
+    veiculos.push(data.veiculo);
+    fecharModal("modalVeiculo");
+    limparFormularioVeiculo();
+
+    alert("Veículo salvo com sucesso.");
+  } catch (error) {
+    alert(error.message);
+  } finally {
+    mostrarLoading(false);
+  }
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      resolve({
+        nome: file.name,
+        tipo: file.type,
+        base64: String(reader.result).split(",")[1]
+      });
+    };
+
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function salvarOS() {
+  let numero = document.getElementById("osNumero").value.trim();
+
+  if (!numero && indiceEdicaoOS === null) {
+    numero = await carregarProximoNumeroOS();
+  }
+
+  const clienteId = document.getElementById("osCliente").value;
+  const veiculoId = document.getElementById("osVeiculo").value;
+  const status = document.getElementById("osStatus").value;
+  const observacoes = document.getElementById("osObservacoes").value.trim();
+  const total = calcularTotalOS();
+
+  const cliente = clientes.find(c => String(c.id) === String(clienteId));
+  const veiculo = veiculos.find(v => String(v.id) === String(veiculoId));
+
+  if (!numero && indiceEdicaoOS !== null) {
+    alert("Número da OS não encontrado na edição.");
+    return;
+  }
+
+  if (!clienteId) {
+    alert("Selecione o cliente.");
+    return;
+  }
+
+  if (!veiculoId) {
     alert("Selecione o veículo.");
     return;
   }
 
   if (!itensOS.length) {
-    alert("Adicione pelo menos um item.");
+    alert("Inclua pelo menos um item na OS.");
     return;
   }
 
-  const payload = {
-    action: modoEdicao ? "editarOS" : "salvarOS",
-    id: osEditandoId,
-    cliente_id,
-    veiculo_id,
-    km_entrada,
-    defeito_relatado,
-    diagnostico,
-    desconto_geral,
-    itens: itensOS
-  };
-
   try {
-    showLoading(true);
-    const res = await apiPost(payload);
+    mostrarLoading(true);
 
-    if (!res.ok) {
-      alert(res.error || "Erro ao salvar a OS.");
-      return;
-    }
-
-    alert(modoEdicao ? "OS atualizada com sucesso." : `OS salva com sucesso: ${res.numero_os}`);
-    limparFormulario();
-    await carregarOS();
-  } catch (error) {
-    alert("Erro ao salvar OS.");
-    console.error(error);
-  } finally {
-    showLoading(false);
-  }
-}
-
-function limparFormulario() {
-  getEl("cliente").value = "";
-  getEl("veiculo").value = "";
-  getEl("km_entrada").value = "";
-  getEl("defeito").value = "";
-  getEl("diagnostico").value = "";
-  getEl("desconto_geral").value = "0";
-  itensOS = [];
-  modoEdicao = false;
-  osEditandoId = null;
-  getEl("btnSalvarOS").textContent = "Salvar OS";
-  renderItens();
-}
-
-async function carregarOS() {
-  try {
-    showLoading(true);
-    const res = await apiGet({ action: "listarOS" });
-    const lista = getEl("listaOS");
-
-    if (!res.ok || !Array.isArray(res.data) || !res.data.length) {
-      lista.innerHTML = "Nenhuma ordem de serviço cadastrada.";
-      lista.classList.add("empty-state");
-      return;
-    }
-
-    lista.classList.remove("empty-state");
-    lista.innerHTML = res.data.map(os => `
-      <div class="os-card">
-        <div class="os-card-header">
-          <div>
-            <strong>${os.NUMERO_OS}</strong>
-          </div>
-          <span class="badge badge-status">${os.STATUS}</span>
-        </div>
-
-        <div class="os-meta">
-          <span>Data abertura: ${os.DATA_ABERTURA || "-"}</span>
-          <span>Total peças: R$ ${formatMoney(os.TOTAL_PECAS)}</span>
-          <span>Total serviços: R$ ${formatMoney(os.TOTAL_SERVICOS)}</span>
-          <span>Total final: R$ ${formatMoney(os.TOTAL_FINAL)}</span>
-        </div>
-
-        <div class="os-actions">
-          <button class="btn btn-secondary" onclick="visualizarOS(${os.ID})">Ver</button>
-          <button class="btn btn-primary" onclick="editarOS(${os.ID})">Editar</button>
-          <button class="btn btn-danger" onclick="excluirOS(${os.ID})">Excluir</button>
-          <button class="btn btn-success" onclick="finalizarOS(${os.ID})">Finalizar</button>
-          <button class="btn btn-primary" onclick="gerarPdf(${os.ID})">Gerar PDF</button>
-          <button class="btn btn-secondary" onclick="enviarWhats(${os.ID})">WhatsApp</button>
-        </div>
-      </div>
-    `).join("");
-  } catch (error) {
-    alert("Erro ao carregar as ordens de serviço.");
-    console.error(error);
-  } finally {
-    showLoading(false);
-  }
-}
-
-async function visualizarOS(id) {
-  try {
-    showLoading(true);
-    const res = await apiGet({ action: "buscarOS", id });
-
-    if (!res.ok) {
-      alert(res.error || "OS não encontrada.");
-      return;
-    }
-
-    const { os, cliente, veiculo, itens } = res.data;
-
-    const itensTexto = (itens || []).map(i =>
-      `${i.TIPO_ITEM} - ${i.DESCRICAO} | Qtd: ${i.QUANTIDADE} | Subtotal: R$ ${formatMoney(i.SUBTOTAL)}`
-    ).join("\n");
-
-    alert(
-      `OS: ${os.NUMERO_OS}\n` +
-      `Status: ${os.STATUS}\n` +
-      `Cliente: ${cliente?.NOME || "-"}\n` +
-      `Veículo: ${veiculo?.PLACA || "-"} - ${veiculo?.MARCA || ""} ${veiculo?.MODELO || ""}\n` +
-      `Defeito: ${os.DEFEITO_RELATADO || "-"}\n` +
-      `Diagnóstico: ${os.DIAGNOSTICO || "-"}\n` +
-      `Total final: R$ ${formatMoney(os.TOTAL_FINAL)}\n\n` +
-      `Itens:\n${itensTexto || "Sem itens"}`
+    const checklistConvertido = await Promise.all(
+      checklistFotos.map(file => fileToBase64(file))
     );
+
+    const payload = {
+      action: "saveOS",
+      os: {
+        id: indiceEdicaoOS !== null ? ordensServico[indiceEdicaoOS].id : "",
+        numero,
+        clienteId,
+        clienteNome: cliente ? cliente.nome : "",
+        veiculoId,
+        veiculoDescricao: veiculo ? `${veiculo.marca || ""} ${veiculo.modelo || ""} - ${veiculo.placa || ""}`.trim() : "",
+        status,
+        observacoes,
+        total,
+        itens: itensOS,
+        checklist: checklistConvertido
+      }
+    };
+
+    const data = await apiPost(payload);
+
+    const osSalva = {
+      ...data.os,
+      clienteTelefone: cliente ? (cliente.telefone || "") : "",
+      clienteWhatsapp: cliente ? (cliente.whatsapp || "") : ""
+    };
+
+    if (indiceEdicaoOS !== null) {
+      ordensServico[indiceEdicaoOS] = osSalva;
+    } else {
+      ordensServico.push(osSalva);
+    }
+
+    renderizarOS();
+    await limparFormularioOS();
+
+    alert("OS salva com sucesso.");
   } catch (error) {
-    alert("Erro ao consultar a OS.");
-    console.error(error);
+    alert(error.message);
   } finally {
-    showLoading(false);
+    mostrarLoading(false);
   }
 }
 
-async function editarOS(id) {
+function renderizarOS(lista = ordensServico) {
+  const tbody = document.getElementById("listaOS");
+  tbody.innerHTML = "";
+
+  lista.forEach((os, index) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${os.numero}</td>
+      <td>${os.clienteNome}</td>
+      <td>${os.veiculoDescricao}</td>
+      <td>${os.status}</td>
+      <td>${formatarMoeda(os.total)}</td>
+      <td>
+        <button class="btn-acao btn-ver" type="button" onclick="verOS(${index})">Ver</button>
+        <button class="btn-acao btn-editar" type="button" onclick="editarOS(${index})">Editar</button>
+        <button class="btn-acao btn-whats" type="button" onclick="enviarPdfWhatsApp(${index})">WhatsApp PDF</button>
+        <button class="btn-acao btn-excluir" type="button" onclick="excluirOS(${index})">Excluir</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function verOS(index) {
+  const os = ordensServico[index];
+
+  const textoItens = (os.itens || []).length
+    ? os.itens.map(i => `- ${i.descricao} | Qtd: ${i.quantidade} | Valor: ${formatarMoeda(i.valor)}`).join("\n")
+    : "Sem itens";
+
+  const textoChecklist = (os.checklist || []).length
+    ? os.checklist.map(f => f.nome || f.url || "Foto").join(", ")
+    : "Sem fotos";
+
+  alert(
+    `OS: ${os.numero}\n` +
+    `Cliente: ${os.clienteNome}\n` +
+    `Veículo: ${os.veiculoDescricao}\n` +
+    `Status: ${os.status}\n` +
+    `Total: ${formatarMoeda(os.total)}\n\n` +
+    `Itens:\n${textoItens}\n\n` +
+    `Checklist:\n${textoChecklist}`
+  );
+}
+
+function editarOS(index) {
+  const os = ordensServico[index];
+
+  document.getElementById("osNumero").value = os.numero || "";
+  document.getElementById("osCliente").value = os.clienteId || "";
+  preencherVeiculosCliente(os.clienteId, os.veiculoId);
+  document.getElementById("osStatus").value = os.status || "Aberta";
+  document.getElementById("osObservacoes").value = os.observacoes || "";
+
+  itensOS = os.itens ? [...os.itens] : [];
+  checklistFotos = [];
+  document.getElementById("checklistFotos").value = "";
+  document.getElementById("previewChecklist").innerHTML = "";
+
+  indiceEdicaoOS = index;
+  renderizarItensOS();
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth"
+  });
+}
+
+async function excluirOS(index) {
+  if (!confirm("Deseja excluir esta OS?")) return;
+
   try {
-    showLoading(true);
-    const res = await apiGet({ action: "buscarOS", id });
+    mostrarLoading(true);
 
-    if (!res.ok) {
-      alert(res.error || "OS não encontrada.");
-      return;
-    }
+    const os = ordensServico[index];
 
-    const { os, itens } = res.data;
+    await apiPost({
+      action: "deleteOS",
+      id: os.id
+    });
 
-    modoEdicao = true;
-    osEditandoId = id;
-
-    getEl("cliente").value = String(os.CLIENTE_ID || "");
-    getEl("veiculo").value = String(os.VEICULO_ID || "");
-    getEl("km_entrada").value = os.KM_ENTRADA || "";
-    getEl("defeito").value = os.DEFEITO_RELATADO || "";
-    getEl("diagnostico").value = os.DIAGNOSTICO || "";
-    getEl("desconto_geral").value = os.DESCONTO_GERAL || 0;
-
-    itensOS = (itens || []).map(item => ({
-      tipo_item: item.TIPO_ITEM,
-      descricao: item.DESCRICAO,
-      quantidade: Number(item.QUANTIDADE || 0),
-      valor_unitario: Number(item.VALOR_UNITARIO || 0),
-      desconto: Number(item.DESCONTO || 0),
-      subtotal: Number(item.SUBTOTAL || 0)
-    }));
-
-    getEl("btnSalvarOS").textContent = "Atualizar OS";
-    renderItens();
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    ordensServico.splice(index, 1);
+    renderizarOS();
+    await carregarProximoNumeroOS();
   } catch (error) {
-    alert("Erro ao carregar dados da OS.");
-    console.error(error);
+    alert(error.message);
   } finally {
-    showLoading(false);
+    mostrarLoading(false);
   }
 }
 
-async function excluirOS(id) {
-  const confirmar = confirm("Deseja excluir esta ordem de serviço?");
-  if (!confirmar) return;
-
+async function enviarPdfWhatsApp(index) {
   try {
-    showLoading(true);
-    const res = await apiPost({ action: "excluirOS", id });
+    const os = ordensServico[index];
 
-    if (!res.ok) {
-      alert(res.error || "Erro ao excluir.");
+    if (!os || !os.id) {
+      alert("OS não encontrada.");
       return;
     }
 
-    alert("OS excluída com sucesso.");
-    await carregarOS();
+    mostrarLoading(true);
+
+    const data = await apiPost({
+      action: "gerarPdfOS",
+      osId: os.id
+    });
+
+    const telefoneCliente = String(os.clienteWhatsapp || os.clienteTelefone || "").replace(/\D/g, "");
+
+    const mensagem =
+      `Olá, segue a Ordem de Serviço ${os.numero} da Mecânica & Guincho Bonatto BEM.\n\n` +
+      `Cliente: ${os.clienteNome}\n` +
+      `Veículo: ${os.veiculoDescricao}\n` +
+      `Total: ${formatarMoeda(os.total)}\n\n` +
+      `PDF: ${data.pdfUrl}`;
+
+    const mensagemCodificada = encodeURIComponent(mensagem);
+
+    let urlWhatsapp = "";
+
+    if (telefoneCliente) {
+      urlWhatsapp = `https://wa.me/55${telefoneCliente}?text=${mensagemCodificada}`;
+    } else {
+      urlWhatsapp = `https://wa.me/?text=${mensagemCodificada}`;
+    }
+
+    window.open(urlWhatsapp, "_blank");
   } catch (error) {
-    alert("Erro ao excluir OS.");
-    console.error(error);
+    alert(error.message);
   } finally {
-    showLoading(false);
+    mostrarLoading(false);
   }
 }
 
-async function finalizarOS(id) {
-  const confirmar = confirm("Deseja finalizar esta ordem de serviço?");
-  if (!confirmar) return;
+function filtrarOS() {
+  const termo = document.getElementById("pesquisaOS").value.toLowerCase().trim();
 
-  try {
-    showLoading(true);
-    const res = await apiPost({ action: "finalizarOS", id });
-
-    if (!res.ok) {
-      alert(res.error || "Erro ao finalizar.");
-      return;
-    }
-
-    alert("OS finalizada com sucesso.");
-    await carregarOS();
-  } catch (error) {
-    alert("Erro ao finalizar OS.");
-    console.error(error);
-  } finally {
-    showLoading(false);
+  if (!termo) {
+    renderizarOS(ordensServico);
+    return;
   }
+
+  const filtrada = ordensServico.filter(os =>
+    String(os.numero || "").toLowerCase().includes(termo) ||
+    String(os.clienteNome || "").toLowerCase().includes(termo)
+  );
+
+  renderizarOS(filtrada);
 }
 
-async function gerarPdf(id) {
-  try {
-    showLoading(true);
-    const res = await apiGet({ action: "gerarPdf", id });
-
-    if (!res.ok) {
-      alert(res.error || "Erro ao gerar PDF.");
-      return;
-    }
-
-    window.open(res.pdf_url, "_blank");
-  } catch (error) {
-    alert("Erro ao gerar PDF.");
-    console.error(error);
-  } finally {
-    showLoading(false);
-  }
+function abrirModalCliente() {
+  document.getElementById("modalCliente").classList.add("ativo");
 }
 
-async function enviarWhats(id) {
-  try {
-    showLoading(true);
-
-    const res = await apiGet({ action: "buscarOS", id });
-    if (!res.ok) {
-      alert(res.error || "OS não encontrada.");
-      return;
-    }
-
-    const dados = res.data;
-    const whatsapp = sanitizePhone(dados.cliente?.WHATSAPP);
-
-    if (!whatsapp) {
-      alert("Cliente sem WhatsApp cadastrado.");
-      return;
-    }
-
-    let pdfUrl = dados.os?.PDF_URL || "";
-
-    if (!pdfUrl) {
-      const pdfRes = await apiGet({ action: "gerarPdf", id });
-      if (pdfRes.ok) pdfUrl = pdfRes.pdf_url;
-    }
-
-    const msg =
-      `Olá, segue a ordem de serviço ${dados.os.NUMERO_OS}.\n` +
-      `Cliente: ${dados.cliente?.NOME || ""}\n` +
-      `Veículo: ${dados.veiculo?.MARCA || ""} ${dados.veiculo?.MODELO || ""} ${dados.veiculo?.PLACA || ""}\n` +
-      `Total: R$ ${formatMoney(dados.os.TOTAL_FINAL)}\n` +
-      `PDF: ${pdfUrl}`;
-
-    const waUrl = `https://wa.me/${whatsapp}?text=${encodeURIComponent(msg)}`;
-    window.open(waUrl, "_blank");
-  } catch (error) {
-    alert("Erro ao abrir o WhatsApp.");
-    console.error(error);
-  } finally {
-    showLoading(false);
-  }
+function abrirModalVeiculo() {
+  document.getElementById("modalVeiculo").classList.add("ativo");
 }
 
-window.addEventListener("DOMContentLoaded", init);
+function fecharModal(id) {
+  document.getElementById(id).classList.remove("ativo");
+}
+
+async function abrirNovaOS() {
+  await limparFormularioOS();
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth"
+  });
+}
+
+window.addEventListener("load", () => {
+  renderizarItensOS();
+  carregarDadosIniciais();
+});
