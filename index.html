@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Oficina Web</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <h1>Oficina Web</h1>
+      <p>Ordem de serviço pelo celular</p>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <div class="card-header">
+        <h2>Nova Ordem de Serviço</h2>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="field">
+          <label for="cliente">Cliente</label>
+          <select id="cliente"></select>
+        </div>
+
+        <div class="field field-inline-end">
+          <label>&nbsp;</label>
+          <button class="btn btn-primary" id="btnNovoCliente">+ Incluir cliente</button>
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="field">
+          <label for="veiculo">Veículo</label>
+          <select id="veiculo"></select>
+        </div>
+
+        <div class="field field-inline-end">
+          <label>&nbsp;</label>
+          <button class="btn btn-primary" id="btnNovoVeiculo">+ Incluir veículo</button>
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="field">
+          <label for="km_entrada">KM Entrada</label>
+          <input id="km_entrada" type="number" placeholder="Ex.: 125000" />
+        </div>
+
+        <div class="field">
+          <label for="desconto_geral">Desconto geral</label>
+          <input id="desconto_geral" type="number" step="0.01" value="0" />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="defeito">Defeito relatado</label>
+        <textarea id="defeito" rows="3" placeholder="Descreva o problema relatado pelo cliente"></textarea>
+      </div>
+
+      <div class="field">
+        <label for="diagnostico">Diagnóstico</label>
+        <textarea id="diagnostico" rows="3" placeholder="Descreva o diagnóstico"></textarea>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <h2>Adicionar Item</h2>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="field">
+          <label for="tipo_item">Tipo</label>
+          <select id="tipo_item">
+            <option value="PECA">Peça</option>
+            <option value="SERVICO">Serviço</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="descricao_item">Descrição</label>
+          <input id="descricao_item" type="text" placeholder="Ex.: Troca de óleo" />
+        </div>
+      </div>
+
+      <div class="grid grid-3">
+        <div class="field">
+          <label for="qtd_item">Quantidade</label>
+          <input id="qtd_item" type="number" step="0.01" value="1" />
+        </div>
+
+        <div class="field">
+          <label for="valor_item">Valor unitário</label>
+          <input id="valor_item" type="number" step="0.01" value="0" />
+        </div>
+
+        <div class="field">
+          <label for="desconto_item">Desconto</label>
+          <input id="desconto_item" type="number" step="0.01" value="0" />
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="btnAdicionarItem">Adicionar item</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <h2>Itens da OS</h2>
+      </div>
+
+      <div id="listaItens" class="items-list empty-state">
+        Nenhum item adicionado.
+      </div>
+
+      <div class="totals">
+        <div class="total-box">
+          <span>Total peças</span>
+          <strong>R$ <span id="totalPecas">0,00</span></strong>
+        </div>
+        <div class="total-box">
+          <span>Total serviços</span>
+          <strong>R$ <span id="totalServicos">0,00</span></strong>
+        </div>
+        <div class="total-box total-box-highlight">
+          <span>Total final</span>
+          <strong>R$ <span id="totalFinal">0,00</span></strong>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-success" id="btnSalvarOS">Salvar OS</button>
+        <button class="btn btn-secondary" id="btnLimparForm">Limpar formulário</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <h2>Ordens de Serviço</h2>
+        <button class="btn btn-secondary" id="btnAtualizarOS">Atualizar</button>
+      </div>
+
+      <div id="listaOS" class="os-list empty-state">
+        Carregando...
+      </div>
+    </section>
+  </main>
+
+  <div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="loading-box">Processando...</div>
+  </div>
+
+  <div id="modalCliente" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Novo cliente</h3>
+        <button class="btn btn-danger btn-small" id="btnFecharModalCliente">Fechar</button>
+      </div>
+
+      <div class="field">
+        <label for="cliente_nome">Nome</label>
+        <input id="cliente_nome" type="text" />
+      </div>
+
+      <div class="grid grid-2">
+        <div class="field">
+          <label for="cliente_telefone">Telefone</label>
+          <input id="cliente_telefone" type="text" />
+        </div>
+
+        <div class="field">
+          <label for="cliente_whatsapp">WhatsApp</label>
+          <input id="cliente_whatsapp" type="text" />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="cliente_email">E-mail</label>
+        <input id="cliente_email" type="email" />
+      </div>
+
+      <div class="field">
+        <label for="cliente_endereco">Endereço</label>
+        <input id="cliente_endereco" type="text" />
+      </div>
+
+      <div class="field">
+        <label for="cliente_obs">Observações</label>
+        <textarea id="cliente_obs" rows="3"></textarea>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-success" id="btnSalvarCliente">Salvar cliente</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalVeiculo" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Novo veículo</h3>
+        <button class="btn btn-danger btn-small" id="btnFecharModalVeiculo">Fechar</button>
+      </div>
+
+      <div class="field">
+        <label for="veiculo_cliente_id">Cliente</label>
+        <select id="veiculo_cliente_id"></select>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="field">
+          <label for="veiculo_placa">Placa</label>
+          <input id="veiculo_placa" type="text" />
+        </div>
+
+        <div class="field">
+          <label for="veiculo_marca">Marca</label>
+          <input id="veiculo_marca" type="text" />
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="field">
+          <label for="veiculo_modelo">Modelo</label>
+          <input id="veiculo_modelo" type="text" />
+        </div>
+
+        <div class="field">
+          <label for="veiculo_ano">Ano</label>
+          <input id="veiculo_ano" type="text" />
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="field">
+          <label for="veiculo_cor">Cor</label>
+          <input id="veiculo_cor" type="text" />
+        </div>
+
+        <div class="field">
+          <label for="veiculo_km">KM</label>
+          <input id="veiculo_km" type="number" />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="veiculo_obs">Observações</label>
+        <textarea id="veiculo_obs" rows="3"></textarea>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-success" id="btnSalvarVeiculo">Salvar veículo</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
